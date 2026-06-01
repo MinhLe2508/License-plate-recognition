@@ -1,0 +1,21 @@
+# Thư mục ảo của Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Dữ liệu nặng (Dataset không nên đưa lên GitHub)
+data/raw/
+data/processed/
+*.mp4
+*.avi
+*.jpg
+*.png
+
+# Trọng số mô hình (File .pt hoặc .onnx quá nặng)
+models/*.pt
+models/*.onnx
+
+# File cấu hình IDE
+.vscode/
+.idea/
