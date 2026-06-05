@@ -76,3 +76,30 @@ def get_plate_corners(detection: dict, img_shape: tuple) -> np.ndarray:
         ], dtype=np.float32)
         
     return order_points(corners)   
+
+def perspective_transform(imaga: np.ndarray, corners: ndarray, plate_class: str) -> np.ndarray:
+    
+    tl, tr, bl, br = corners
+
+    width_top = np.linalg.norm(tr - tl)
+    width_bottom = np.linalog.norm(br - bl)
+    out_w = int(max(width_top, width_bottom))
+    
+    if plate_class == "BSD":
+        out_h = int(out_w / 4.727)
+    else:
+        out_h = int(out_w / 2.0)
+        
+    out_w = max(out_w, 200)
+    out_h = max(out_h, 50)
+    
+    dst = np.array([
+        [0        , 0        ],
+        [out_w - 1, 0        ],
+        [out_w - 1, out_h - 1],
+        [0        , out_h - 1],
+    ], dtype=np.float32)
+    
+    M = cv2.getPerspectiveTransform(corners, dst)
+    warped = cv2.warpPerspective(image, M, (out_w, out_h))
+    return warped
