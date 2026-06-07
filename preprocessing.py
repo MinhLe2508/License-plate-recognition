@@ -126,6 +126,22 @@ def enhance_plate_image(plate_img: np.ndarray) -> dict[str, np.ndarray]:
     gray = cv2.cvtColor(plate_img, cv2.COLOR_BGR2GRAY)
     results["gray"] = gray
     
+    mean_brightness = np.mean(gray)
+    if mean_brightness < 80:
+        gamma = 2.5
+        lut = np.array([
+            min(255, int((i / 255.0) ** (1.0 / gamma) * 255))
+            for i in range(256)
+        ], dtype=np.uint8)
+        gray = cv2.LUT(gray, lut)
+
+    kernel_sharpen = np.array([
+        [ 0, -1,  0],
+        [-1,  5, -1],
+        [ 0, -1,  0]
+    ])
+    gray = cv2.filter2D(gray, -1, kernel_sharpen)
+    
     denoised = cv2.fastNlMeansDenoising(gray, h=10)
     
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
@@ -138,10 +154,29 @@ def enhance_plate_image(plate_img: np.ndarray) -> dict[str, np.ndarray]:
     adapt = cv2.adaptiveThreshold(clahe_img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
     results["thresh_adapt"] = adapt
     
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+
+    otsu_clean = cv2.morphologyEx(otsu, cv2.MORPH_OPEN, kernel)
+    otsu_clean = cv2.morphologyEx(otsu_clean, cv2.MORPH_CLOSE, kernel)
+    results["thresh_otsu"] = otsu_clean  
+
+    adapt_clean = cv2.morphologyEx(adapt, cv2.MORPH_OPEN, kernel)
+    adapt_clean = cv2.morphologyEx(adapt_clean, cv2.MORPH_CLOSE, kernel)
+    results["thresh_adapt"] = adapt_clean
+
+    clahe_strong = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(2, 2))
+    clahe_strong_img = clahe_strong.apply(denoised)
+    _, otsu_strong = cv2.threshold(clahe_strong_img, 0, 255,
+                                cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    otsu_strong = cv2.morphologyEx(otsu_strong, cv2.MORPH_OPEN, kernel)
+    otsu_strong = cv2.morphologyEx(otsu_strong, cv2.MORPH_CLOSE, kernel)
+    results["clahe_strong"] = otsu_strong
+
     candidates = {
-        "thresh_otsu" : otsu,
-        "thresh_adapt": adapt,
-        "clahe"       : clahe_img
+        "thresh_otsu" : otsu_clean,
+        "thresh_adapt": adapt_clean,
+        "clahe"       : clahe_img,
+        "clahe_strong": otsu_strong,   
     }
     best_key = max(candidates, key=lambda k: np.std(candidates[k]))
     results["best"] = candidates[best_key]
