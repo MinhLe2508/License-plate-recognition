@@ -10,6 +10,7 @@ import argparse
 import numpy as np
 from ultralytics import YOLO
 from paddleocr import PaddleOCR
+from src.utils.database import MySQLDatabase
 
 from preprocessing import Preprocessor
 
@@ -380,6 +381,10 @@ if __name__ == "__main__":
     parser.add_argument("--output", default="output_plates")
     parser.add_argument("--no-gpu", action="store_true")
     args = parser.parse_args()
+    
+    db = MySQLDatabase(host="localhost", user="root", password="123433", database="alphr_system_db")
+    if not db.test_connection():
+        print("Chạy không có DB - Kết quả sẽ không được lưu!")
 
     print("Đang load YOLOv8...")
     print("Đang load PaddleOCR...")
@@ -408,10 +413,23 @@ if __name__ == "__main__":
     for img_path in image_list:
         results   = pipeline.run(img_path, debug=args.debug)
         base_name = os.path.splitext(os.path.basename(img_path))[0]
+        
         for idx, res in enumerate(results):
-            out_path = os.path.join(args.output,
-                                    f"{base_name}_plate{idx+1}_{res['class']}.jpg")
+            out_path = os.path.join(
+                args.output,
+                f"{base_name}_plate{idx + 1}_{res['class']}.jpg",
+            )
             cv2.imwrite(out_path, res["plate_imgs"]["best"])
+            
+            
+            if res['plate_text'].strip():
+                db.insert_log(
+                    plate_text=res['plate_text'],
+                    image_path=out_path,
+                    vehicle_class=res['class'],
+                    confidence=float(res['conf'])
+                )
+
             all_results.append({
                 "file"      : os.path.basename(img_path),
                 "plate_text": res["plate_text"],
